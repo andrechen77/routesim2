@@ -19,7 +19,6 @@ class Link_State_Node(Node):
     def update_link(self, link, latency, seq_num=None):
 
         old_seq_num, _ = self.link_states.get(link, (0, latency))
-        print(f"updating link: link={link}, latency={latency}, seq_num={seq_num}, old_seq_num={old_seq_num}")
         if seq_num is None or seq_num > old_seq_num:
             # maintain link states
             self.link_states[link] = old_seq_num + 1, latency
@@ -33,13 +32,9 @@ class Link_State_Node(Node):
                 self.adj_list.setdefault(src, set()).add(dst)
                 self.adj_list.setdefault(dst, set()).add(src)
 
-            self.run_dijkstra()
         return old_seq_num, self.link_states[link]
 
     def run_dijkstra(self):
-        print(f"\nrunning dijkstra's on graph: {self.adj_list}")
-        print(f"link_state: {self.link_states}")
-
         # First, let's define a function to find the node with the smallest distance
         # that has not been visited yet
         def min_distance(distances, visited):
@@ -62,15 +57,12 @@ class Link_State_Node(Node):
 
         # Loop through all nodes to find shortest path to each node
         for i in range(len(self.adj_list)):
-            print(f"distances: {distances}")
-            print(f"visited: {visited}")
             # Find minimum distance node that has not been visited yet
             current_node = min_distance(distances, visited)
+            # can't reach any other node, return early
             if current_node==-1:
-                print("can't reach any other nodes, returning early")
                 return
             
-            print(f"curr_node: {current_node}")
             # Add current_node to list of visited nodes
             visited.add(current_node)
             # Loop through all unvisited neighboring nodes of current_node
@@ -87,7 +79,6 @@ class Link_State_Node(Node):
                             self.routing_table[neighbor] = neighbor
                         else:
                             self.routing_table[neighbor] = self.routing_table[current_node]
-        print(f"new routing table: {self.routing_table}")
 
     def serialize_routing_message(self, link):
         # routing message: link source, link destination, sequence number, latency
@@ -100,7 +91,6 @@ class Link_State_Node(Node):
             "seq_num": seq_num,
             "latency": latency
         }
-        print(f"sending {json.dumps(msg_obj)}")
         return json.dumps(msg_obj)
 
     def deserialize_routing_message(self, msg):
@@ -109,35 +99,25 @@ class Link_State_Node(Node):
 
     def link_has_been_updated(self, neighbor, latency):
         self.logging.debug('link update, neighbor %d, latency %d, time %d' % (neighbor, latency, self.get_time()))
-        print(f"call to link_has_been_updated at {self.get_time()}: neighbor={neighbor}, latency={latency}")
-        print(self)
         my_link = frozenset([self.id, neighbor])
 
         # update link_states dict
         self.update_link(my_link, latency)
 
         if latency == -1 and neighbor in self.neighbors:
-            print(f"deleting neighbor {neighbor}")
             # delete a link
             self.neighbors.remove(neighbor)
         elif latency != -1 and neighbor not in self.neighbors:
-            print(f"adding new neighbor {neighbor}")
             self.neighbors.append(neighbor)
             # for new neighbors, send information about every *other* link in link_states dict
             for link in self.link_states:
-                print(f"sending my new neighbor info about link {link}")
                 if link != my_link:
                     self.send_to_neighbor(neighbor, self.serialize_routing_message(link))
         
         # propagate received link info to all neighbors
-        print("sending updated link info to all neighbors")
         self.send_to_neighbors(self.serialize_routing_message(my_link))
-        print(f"Me after link_has_been_updated at time {self.get_time()}")
-        print(self, "\n")
 
     def process_incoming_routing_message(self, m):
-        print(f"call to process_incoming_routing_message at time {self.get_time()}: msg={m}")
-        print(self)
         self.logging.debug("receive a message at Time %d. " % self.get_time() + m)
 
         sender_id, msg_link, seq_num, latency = self.deserialize_routing_message(m)
@@ -146,17 +126,12 @@ class Link_State_Node(Node):
         if seq_num > old_seq_num:
             # message is new
             # propagate to all neighbors
-            print("new message detected, sending to all neighbors")
             self.send_to_neighbors(self.serialize_routing_message(msg_link))
         elif seq_num < old_seq_num:
             # message is old, send new link info to sender
-            print("old message, alerting sender")
             self.send_to_neighbor(sender_id, self.serialize_routing_message(msg_link))
-        else:
-            print("duplicate message, doing nothing")
-        print("Me after process_incoming_routing_message")
-        print(self, "\n")
 
     # Return a neighbor, -1 if no path to destination
     def get_next_hop(self, destination):
+        self.run_dijkstra()
         return self.routing_table.get(destination, -1)

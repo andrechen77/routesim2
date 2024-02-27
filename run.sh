@@ -1,9 +1,15 @@
 #!/bin/bash
+# runs all test cases in a given folder 
 
-folder_path="./testing_suite"
+# Check if at least two arguments are provided
+if [ "$#" -lt 2 ]; then
+    echo "Usage: sh $0 route_algorithm folder_path"
+    exit 1
+fi
+
 extension="event"
 
-find "$folder_path" -type f -name "*.$extension" | while read -r file; do
+find "$2" -type f -name "*.$extension" | while read -r file; do
 	echo "Running tests on $file"
-	python3 sim.py LINK_STATE $file
+	python3 sim.py $1 $file
 done
